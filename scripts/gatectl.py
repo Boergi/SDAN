@@ -27,7 +27,7 @@ HOST_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$")
 HEADER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*$")
 PLUGIN_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9./_-]+(@[a-zA-Z0-9.]+)?$")
 DETAILED_HELP = """Commands:
-  init                         Create config/apps.toml from config/apps.example.toml.
+  init                         Create an empty config/apps.toml.
   apply                        Regenerate .generated/Caddyfile, validate, and reload Caddy.
   list                         Show all configured apps and their access mode.
   add                          Add an app host/upstream to the config.
@@ -81,7 +81,7 @@ def parse_args() -> argparse.Namespace:
 
     subcommands = parser.add_subparsers(dest="command", required=True)
 
-    init = subcommands.add_parser("init", help="Create config/apps.toml from the example config")
+    init = subcommands.add_parser("init", help="Create an empty config/apps.toml")
     init.add_argument("--force", action="store_true", help="Overwrite an existing app config")
 
     apply = subcommands.add_parser("apply", help="Regenerate config and reload Caddy")
@@ -586,7 +586,7 @@ _gatectl() {
   cur="${COMP_WORDS[COMP_CWORD]}"
   prev="${COMP_WORDS[COMP_CWORD-1]}"
 
-  local commands="init apply help list add enable disable remove public token trusted-ip completion install"
+  local commands="init apply help list add enable disable remove public token trusted-ip plugin app completion install"
   local global_options="--help --config --no-generate"
 
   case "$prev" in
@@ -645,6 +645,20 @@ _gatectl() {
     install)
       COMPREPLY=( $(compgen -W "--prefix --completion --force --help" -- "$cur") )
       ;;
+    plugin)
+      if [[ $COMP_CWORD -eq 2 ]]; then
+        COMPREPLY=( $(compgen -W "add list remove config" -- "$cur") )
+      elif [[ "$prev" == "add" || "$prev" == "remove" ]]; then
+        return 0
+      fi
+      ;;
+    app)
+      if [[ $COMP_CWORD -eq 2 ]]; then
+        COMPREPLY=( $(compgen -W "config" -- "$cur") )
+      elif [[ "$prev" == "config" ]]; then
+        COMPREPLY=( $(compgen -W "$(_gatectl_app_ids)" -- "$cur") )
+      fi
+      ;;
   esac
 }
 
@@ -676,6 +690,8 @@ _gatectl() {
     'public:Manage public access'
     'token:Manage access tokens'
     'trusted-ip:Manage trusted IP bypasses'
+    'plugin:Manage Caddy plugins'
+    'app:Manage per-app Caddy extra directives'
     'completion:Print shell completion'
     'install:Install gatectl globally'
   )
@@ -723,6 +739,18 @@ _gatectl() {
       ;;
     install)
       compadd -- --prefix --completion --force --help
+      ;;
+    plugin)
+      if (( CURRENT == 3 )); then
+        compadd -- add list remove config
+      fi
+      ;;
+    app)
+      if (( CURRENT == 3 )); then
+        compadd -- config
+      elif (( CURRENT == 4 )); then
+        _gatectl_app_ids
+      fi
       ;;
   esac
 }
@@ -785,14 +813,11 @@ def install_gatectl(prefix: Path, completion: str, force: bool) -> None:
 def init_config(config_path: Path, force: bool) -> None:
     if config_path.exists() and not force:
         raise AppConfigError(f"Config already exists: {config_path}. Use --force to overwrite it.")
-    try:
-        content = DEFAULT_EXAMPLE_CONFIG.read_text(encoding="utf-8")
-    except FileNotFoundError as exc:
-        raise AppConfigError(f"Example config not found: {DEFAULT_EXAMPLE_CONFIG}") from exc
 
     config_path.parent.mkdir(parents=True, exist_ok=True)
-    config_path.write_text(content, encoding="utf-8")
-    print(f"Created {config_path} from {DEFAULT_EXAMPLE_CONFIG}")
+    config_path.write_text("# App configuration\n# Add your apps below using:\n#   gatectl add <id> <title> <host> <upstream>\n", encoding="utf-8")
+    print(f"Created empty {config_path}")
+    print("Add apps with: gatectl add <id> <title> <host> <upstream>")
 
 
 def add_app(apps: list[dict[str, Any]], args: argparse.Namespace) -> None:
