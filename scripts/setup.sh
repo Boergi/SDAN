@@ -125,8 +125,14 @@ create_env_file() {
     echo ""
     echo "=== Common Settings ==="
     echo ""
-    read -r -p "Auth Domain (e.g., auth.yourdomain.com): " AUTH_DOMAIN
-    read -r -p "Cookie Domain (e.g., yourdomain.com): " COOKIE_DOMAIN
+
+    if [[ "$OIDC_PROVIDER" != "none" ]]; then
+        read -r -p "Auth Domain (e.g., auth.yourdomain.com): " AUTH_DOMAIN
+        read -r -p "Cookie Domain (e.g., yourdomain.com): " COOKIE_DOMAIN
+    else
+        AUTH_DOMAIN=""
+        COOKIE_DOMAIN=""
+    fi
     read -r -p "Proxy Network Name [proxy_net]: " PROXY_NETWORK
     PROXY_NETWORK="${PROXY_NETWORK:-proxy_net}"
 

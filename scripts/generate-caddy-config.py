@@ -28,8 +28,8 @@ class ConfigError(Exception):
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--config", type=Path, default=DEFAULT_CONFIG)
-    parser.add_argument("--provider", choices=VALID_PROVIDERS, default="azure",
-                        help="OIDC provider: azure, authentik, or none (default: azure)")
+    parser.add_argument("--provider", choices=VALID_PROVIDERS, default="none",
+                        help="OIDC provider: azure, authentik, or none (default: none)")
     parser.add_argument("--output", type=Path, default=DEFAULT_OUTPUT)
     return parser.parse_args()
 

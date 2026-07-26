@@ -494,8 +494,19 @@ def print_public(app: dict[str, Any]) -> None:
 
 
 def regenerate(config_path: Path) -> None:
+    env_path = REPO_ROOT / ".env"
+    provider = "none"  # Default fallback
+    if env_path.exists():
+        with env_path.open("r") as f:
+            for line in f:
+                line = line.strip()
+                if line.startswith("OIDC_PROVIDER="):
+                    val = line.split("=", 1)[1].strip().strip("'\"")
+                    if val in ("azure", "authentik", "none"):
+                        provider = val
+                    break
     subprocess.run(
-        [sys.executable, str(GENERATOR), "--config", str(config_path)],
+        [sys.executable, str(GENERATOR), "--config", str(config_path), "--provider", provider],
         cwd=REPO_ROOT,
         check=True,
     )
