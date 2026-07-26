@@ -198,12 +198,23 @@ ensure_apps_config() {
         return 1
     fi
 
-    cp "$APPS_EXAMPLE" "$APPS_CONFIG"
-    log_info "Created $APPS_CONFIG from example file."
-    echo ""
-    echo "IMPORTANT: Edit $APPS_CONFIG to update the hostnames to your actual domains!"
-    echo "  Example: change 'w1.yourdomain.com' to 'w1.boergi.net'"
-    echo ""
+    # Source .env to get COOKIE_DOMAIN if available
+    if [[ -f "$ENV_FILE" ]]; then
+        source "$ENV_FILE"
+    fi
+
+    # Replace placeholder domains with actual cookie domain
+    if [[ -n "${COOKIE_DOMAIN:-}" ]]; then
+        sed "s|yourdomain\.com|$COOKIE_DOMAIN|g" "$APPS_EXAMPLE" > "$APPS_CONFIG"
+        log_info "Created $APPS_CONFIG from example file (domains set to *.$COOKIE_DOMAIN)."
+    else
+        cp "$APPS_EXAMPLE" "$APPS_CONFIG"
+        log_info "Created $APPS_CONFIG from example file."
+        echo ""
+        echo "IMPORTANT: Edit $APPS_CONFIG to update the hostnames to your actual domains!"
+        echo "  Example: change 'w1.yourdomain.com' to 'w1.boergi.net'"
+        echo ""
+    fi
     read -r -p "Press Enter to continue with setup... " _
 }
 
