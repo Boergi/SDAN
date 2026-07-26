@@ -1,0 +1,7 @@
+.env
+.generated/
+config/apps.toml
+__pycache__/
+*.pyc
+caddy/jwt/*.pem
+caddy/jwt/*.key

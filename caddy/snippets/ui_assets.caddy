@@ -1,0 +1,14 @@
+(ui_assets) {
+  handle /ui/* {
+    uri strip_prefix /ui
+    root * /etc/caddy/ui/assets
+    file_server
+  }
+
+  @auth_ui path /proxy/auth/ui/*
+  handle @auth_ui {
+    uri strip_prefix /proxy/auth/ui
+    root * /etc/caddy/ui/assets
+    file_server
+  }
+}

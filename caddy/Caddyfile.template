@@ -1,0 +1,64 @@
+{
+  order authenticate before respond
+  order authorize before basicauth
+
+  security {
+    oauth identity provider azure {
+      realm azure
+      driver azure
+      tenant_id {env.AZURE_TENANT_ID}
+      client_id {env.AZURE_CLIENT_ID}
+      client_secret {env.AZURE_CLIENT_SECRET}
+      scopes openid email profile
+    }
+
+    authentication portal sso_portal {
+      crypto key key1 sign from file /etc/caddy/jwt/sign_key1.pem
+      crypto key key1 verify from file /etc/caddy/jwt/verify_key1.pem
+      crypto default token lifetime 36000
+      enable identity provider azure
+      cookie domain {$COOKIE_DOMAIN}
+      cookie lifetime 36000
+      cookie path /
+      trust login redirect uri domain suffix {$COOKIE_DOMAIN} path prefix /
+      trust logout redirect uri domain suffix {$COOKIE_DOMAIN} path prefix /
+      transform user {
+        match realm azure
+        action add role authp/user
+      }
+
+      ui {
+        theme basic
+        language en
+        logo url /ui/shopwareLogoITApps.png
+        logo description Shopware IT Apps
+        meta title SWAG Infra Portal
+        meta description Internal applications - SWAG Infra
+        template portal /etc/caddy/ui/portal.template
+        template login /etc/caddy/ui/login.template
+        template generic /etc/caddy/ui/generic.template
+        custom css path /etc/caddy/ui/custom.css
+{{PORTAL_LINKS_BLOCK}}
+      }
+    }
+{{AUTHORIZATION_POLICIES}}
+  }
+}
+
+import snippets/security_baseline.caddy
+import snippets/ui_assets.caddy
+
+{$AUTH_DOMAIN} {
+  import security_baseline
+  import ui_assets
+
+  @proxyauth path /proxy/auth* /proxy/portal* /proxy/logout*
+  route @proxyauth {
+    authenticate with sso_portal
+  }
+
+  # Root -> Portal (mit Session) bzw. Login (ohne Session, via authenticate)
+  @siteRoot path /
+  redir @siteRoot /proxy/auth/portal temporary
+}
+{{APP_SITE_BLOCKS}}

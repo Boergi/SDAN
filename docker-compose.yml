@@ -1,0 +1,36 @@
+services:
+  caddy:
+    build: ./caddy
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./.generated/Caddyfile:/etc/caddy/Caddyfile:ro
+      - ./caddy/snippets:/etc/caddy/snippets:ro
+      - ./caddy/ui:/etc/caddy/ui:ro
+      - ./caddy/jwt:/etc/caddy/jwt:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    env_file: .env
+    environment:
+      OIDC_PROVIDER: ${OIDC_PROVIDER:-azure}
+      AZURE_TENANT_ID: ${AZURE_TENANT_ID}
+      AZURE_CLIENT_ID: ${AZURE_CLIENT_ID}
+      AZURE_CLIENT_SECRET: ${AZURE_CLIENT_SECRET}
+      AUTHENTIK_ISSUER_URL: ${AUTHENTIK_ISSUER_URL}
+      AUTHENTIK_CLIENT_ID: ${AUTHENTIK_CLIENT_ID}
+      AUTHENTIK_CLIENT_SECRET: ${AUTHENTIK_CLIENT_SECRET}
+      AUTH_DOMAIN: ${AUTH_DOMAIN}
+      COOKIE_DOMAIN: ${COOKIE_DOMAIN}
+    networks:
+      - proxy_net
+    restart: unless-stopped
+
+networks:
+  proxy_net:
+    name: ${PROXY_NETWORK:-proxy_net}
+    driver: bridge
+
+volumes:
+  caddy_data:
+  caddy_config:

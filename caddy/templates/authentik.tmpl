@@ -1,0 +1,47 @@
+{
+  order authenticate before respond
+  order authorize before basicauth
+
+  security {
+    oauth identity provider authentik {
+      realm authentik
+      driver openid_connect
+      issuer_url {env.AUTHENTIK_ISSUER_URL}
+      client_id {env.AUTHENTIK_CLIENT_ID}
+      client_secret {env.AUTHENTIK_CLIENT_SECRET}
+      scopes openid email profile
+      disable_claims_validation
+    }
+
+    authentication portal sso_portal {
+      crypto key key1 sign from file /etc/caddy/jwt/sign_key1.pem
+      crypto key key1 verify from file /etc/caddy/jwt/verify_key1.pem
+      crypto default token lifetime 36000
+      enable identity provider authentik
+      cookie domain {$COOKIE_DOMAIN}
+      cookie lifetime 36000
+      cookie path /
+      trust login redirect uri domain suffix {$COOKIE_DOMAIN} path prefix /
+      trust logout redirect uri domain suffix {$COOKIE_DOMAIN} path prefix /
+      transform user {
+        match realm authentik
+        action add role authp/user
+      }
+
+      ui {
+        theme basic
+        language en
+        logo url /ui/shopwareLogoITApps.png
+        logo description Shopware IT Apps
+        meta title SWAG Infra Portal
+        meta description Internal applications - SWAG Infra
+        template portal /etc/caddy/ui/portal.template
+        template login /etc/caddy/ui/login.template
+        template generic /etc/caddy/ui/generic.template
+        custom css path /etc/caddy/ui/custom.css
+{{PORTAL_LINKS_BLOCK}}
+      }
+    }
+{{AUTHORIZATION_POLICIES}}
+  }
+}

@@ -1,0 +1,19 @@
+services:
+  app:
+    image: nginx:alpine
+    volumes:
+      - ./index.html:/usr/share/nginx/html/index.html:ro
+    networks:
+      app_net:
+      proxy_net:
+        aliases:
+          - w1-app
+    restart: unless-stopped
+
+networks:
+  app_net:
+    driver: bridge
+
+  proxy_net:
+    external: true
+    name: proxy_net

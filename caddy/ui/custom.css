@@ -1,0 +1,237 @@
+/* Portal theme (overrides authcrunch portal.css / login.css) */
+
+:root {
+  --brand: #189eff;
+  --brand-dark: #0047b3;
+  --brand-soft: #e8f4ff;
+  --surface: #ffffff;
+  --text: #0a1f44;
+  --muted: #5c6b8a;
+  --border: #c8ddf5;
+  --radius: 14px;
+  --shadow: 0 20px 50px rgba(0, 71, 179, 0.12);
+}
+
+html.h-full,
+body.h-full {
+  min-height: 100% !important;
+  background: linear-gradient(145deg, #dbeafe 0%, #eef6ff 45%, #f8fbff 100%) !important;
+  font-family: "Segoe UI", system-ui, -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+.app-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.app-content {
+  width: 100%;
+  max-width: 440px;
+}
+
+.app-container {
+  background: var(--surface) !important;
+  border: 1px solid var(--border) !important;
+  border-radius: var(--radius) !important;
+  box-shadow: var(--shadow) !important;
+  padding: 2rem 1.75rem 1.5rem !important;
+}
+
+.logo-box,
+.logo-col-box {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  text-align: center !important;
+  gap: 0.85rem !important;
+  margin-bottom: 1.25rem !important;
+}
+
+.logo-img {
+  height: auto !important;
+  max-height: 140px !important;
+  width: auto !important;
+  max-width: min(320px, 90vw) !important;
+  object-fit: contain !important;
+}
+
+.logo-txt,
+.logo-col-txt {
+  font-size: 1.45rem !important;
+  font-weight: 700 !important;
+  color: var(--text) !important;
+  letter-spacing: -0.02em !important;
+  margin: 0 !important;
+}
+
+.app-inp-lbl,
+.app-inp-lbl + p,
+.app-container > div > p {
+  color: var(--muted) !important;
+  font-size: 0.95rem !important;
+  text-align: center !important;
+  margin-bottom: 1.25rem !important;
+}
+
+/* Portal service tiles */
+.app-portal-btn-box {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.85rem !important;
+  padding: 0.9rem 1rem !important;
+  border: 1px solid var(--border) !important;
+  border-radius: 12px !important;
+  background: #fafcff !important;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease !important;
+}
+
+a:hover .app-portal-btn-box {
+  border-color: var(--brand) !important;
+  background: var(--brand-soft) !important;
+  transform: translateY(-2px) !important;
+  box-shadow: 0 8px 24px rgba(24, 158, 255, 0.18) !important;
+}
+
+.app-portal-btn-img {
+  width: 2.5rem !important;
+  height: 2.5rem !important;
+  border-radius: 10px !important;
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark)) !important;
+  color: #fff !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.2rem !important;
+  flex-shrink: 0 !important;
+}
+
+.app-portal-btn-txt span {
+  font-size: 1rem !important;
+  font-weight: 600 !important;
+  color: var(--text) !important;
+}
+
+/* Logout tile */
+a[href$="/logout"] .app-portal-btn-img {
+  background: #fee2e2 !important;
+  color: #dc2626 !important;
+}
+
+a[href$="/logout"]:hover .app-portal-btn-box {
+  border-color: #fecaca !important;
+  background: #fef2f2 !important;
+  box-shadow: 0 8px 20px rgba(220, 38, 38, 0.1) !important;
+}
+
+/* Login: redundant title under full logo */
+.app-login .logo-txt {
+  display: none !important;
+}
+
+/* Microsoft sign-in button (Fluent-style) */
+#authenticators {
+  margin-top: 0.75rem !important;
+}
+
+a.ms-login-btn {
+  display: flex !important;
+  align-items: center !important;
+  gap: 0.75rem !important;
+  width: 100% !important;
+  min-height: 52px !important;
+  padding: 0.6rem 1rem !important;
+  text-decoration: none !important;
+  background: #ffffff !important;
+  border: 1px solid #8c8c8c !important;
+  border-radius: 6px !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06) !important;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    transform 0.15s ease !important;
+}
+
+a.ms-login-btn:hover {
+  background: #f3f3f3 !important;
+  border-color: #5e5e5e !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  transform: translateY(-1px) !important;
+}
+
+a.ms-login-btn:focus-visible {
+  outline: 2px solid #0078d4 !important;
+  outline-offset: 2px !important;
+}
+
+a.ms-login-btn:active {
+  background: #ebebeb !important;
+  transform: translateY(0) !important;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08) !important;
+}
+
+.ms-login-icon {
+  flex-shrink: 0 !important;
+  width: 2.25rem !important;
+  height: 2.25rem !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  font-size: 1.25rem !important;
+  color: #0078d4 !important;
+  background: transparent !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.ms-login-copy {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  gap: 0.1rem !important;
+  min-width: 0 !important;
+  background: transparent !important;
+}
+
+.ms-login-label {
+  font-size: 0.95rem !important;
+  font-weight: 600 !important;
+  color: #1b1b1b !important;
+  line-height: 1.35 !important;
+  letter-spacing: 0 !important;
+  text-transform: none !important;
+}
+
+.ms-login-hint {
+  font-size: 0.75rem !important;
+  font-weight: 400 !important;
+  color: #5c5c5c !important;
+  line-height: 1.25 !important;
+}
+
+.app-btn-pri {
+  background: linear-gradient(135deg, var(--brand), var(--brand-dark)) !important;
+  border-radius: 10px !important;
+  color: #fff !important;
+}
+
+.app-btn-sec {
+  border-radius: 10px !important;
+  border: 1px solid var(--border) !important;
+}
+
+.mt-3.grid {
+  display: flex !important;
+  flex-direction: column !important;
+  gap: 0.65rem !important;
+}
+
+#bookmarks,
+#qr {
+  display: none !important;
+}
