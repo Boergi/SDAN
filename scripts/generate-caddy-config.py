@@ -245,15 +245,29 @@ def render_authorization_policies(apps: list[dict[str, Any]], provider: str) -> 
     return "".join(blocks)
 
 
+def load_app_extra(app_id: str, script_dir: Path) -> str:
+    """Load per-app Caddy extra directives from caddy/extra/apps/<id>.caddy if it exists."""
+    extra_path = script_dir.parent / "caddy" / "extra" / "apps" / f"{app_id}.caddy"
+    if extra_path.exists():
+        content = extra_path.read_text(encoding="utf-8").strip()
+        if content:
+            return f"\n  # --- extra/apps/{app_id}.caddy ---\n  " + content.replace("\n", "\n  ")
+    return ""
+
+
 def render_app_sites(apps: list[dict[str, Any]], provider: str) -> str:
+    script_dir = Path(__file__).parent.resolve()
     blocks: list[str] = []
     for app in apps:
+        app_extra = load_app_extra(app["id"], script_dir)
+
         if app["public"]:
             blocks.append(
                 f"""
 
 {app['host']} {{
   import security_baseline
+{app_extra}
 
   reverse_proxy {app['upstream']}
 }}"""
@@ -306,6 +320,7 @@ def render_app_sites(apps: list[dict[str, Any]], provider: str) -> str:
 {''.join(token_matchers)}
 {trusted_ip_handle}
 {''.join(token_handles)}
+{app_extra}
 
   handle {{
     respond "Forbidden" 403

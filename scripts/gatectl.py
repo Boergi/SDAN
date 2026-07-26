@@ -25,6 +25,7 @@ DEFAULT_TOKEN_HEADER = "X-Proxy-Token"
 ID_PATTERN = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 HOST_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9.-]*[A-Za-z0-9]$")
 HEADER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9-]*$")
+PLUGIN_PATTERN = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9./_-]+(@[a-zA-Z0-9.]+)?$")
 DETAILED_HELP = """Commands:
   init                         Create config/apps.toml from config/apps.example.toml.
   apply                        Regenerate .generated/Caddyfile, validate, and reload Caddy.
@@ -35,6 +36,9 @@ DETAILED_HELP = """Commands:
   public enable|disable|list   Toggle or inspect no-auth public access for an app.
   token add|list|remove        Manage named X-Proxy-Token style app access tokens.
   trusted-ip add|list|remove   Manage IP/CIDR bypasses for an app.
+  plugin add|list|remove       Manage additional Caddy plugins (xcaddy --with flags).
+  plugin config                Open caddy/extra/global.caddy in $EDITOR for global plugin config.
+  app <id> config              Open per-app Caddy extra directives in $EDITOR.
   completion bash|zsh          Print shell completion for tab completion.
   install                      Install gatectl globally and write completion files.
   help                         Show this detailed help.
@@ -185,6 +189,27 @@ def parse_args() -> argparse.Namespace:
         help="Completion files to install",
     )
     install.add_argument("--force", action="store_true", help="Overwrite an existing non-gatectl launcher")
+
+    # Plugin management
+    plugin = subcommands.add_parser("plugin", help="Manage additional Caddy plugins")
+    plugin_commands = plugin.add_subparsers(dest="plugin_command", required=True)
+
+    plugin_add = plugin_commands.add_parser("add", help="Add a Caddy plugin (e.g. github.com/caddy-dns/hetzner/v2@v2.0.1)")
+    plugin_add.add_argument("import_path", help="Go import path with optional @version suffix")
+
+    plugin_list = plugin_commands.add_parser("list", help="List installed Caddy plugins")
+
+    plugin_remove = plugin_commands.add_parser("remove", help="Remove a Caddy plugin")
+    plugin_remove.add_argument("import_path", help="Go import path to remove")
+
+    plugin_config = plugin_commands.add_parser("config", help="Open caddy/extra/global.caddy in $EDITOR")
+
+    # App extra config
+    app = subcommands.add_parser("app", help="Manage per-app Caddy extra directives")
+    app_commands = app.add_subparsers(dest="app_command", required=True)
+
+    app_config = app_commands.add_parser("config", help="Open per-app Caddy extra directives in $EDITOR")
+    app_config.add_argument("id", help="App id")
 
     return parser.parse_args()
 
@@ -837,6 +862,169 @@ def set_public(app: dict[str, Any], public: bool) -> None:
     app["public"] = public
 
 
+# ── Plugin management (.env helpers) ──────────────────────────────────────────
+
+def _env_path() -> Path:
+    return REPO_ROOT / ".env"
+
+
+def read_env(key: str) -> str | None:
+    """Read a single key from .env file. Returns None if key not found."""
+    env_path = _env_path()
+    if not env_path.exists():
+        return None
+    with env_path.open("r") as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith(f"{key}="):
+                return line.split("=", 1)[1].strip().strip('"\'')
+    return None
+
+
+def write_env(key: str, value: str) -> None:
+    """Update or add a key=value in .env file, preserving other entries."""
+    env_path = _env_path()
+    if not env_path.exists():
+        raise AppConfigError(f".env file not found at {env_path}. Run 'setup.sh' first.")
+
+    lines = env_path.read_text(encoding="utf-8").splitlines(keepends=True)
+    found = False
+    new_lines: list[str] = []
+    for line in lines:
+        stripped = line.strip()
+        if stripped.startswith(f"{key}=") or stripped.startswith(f"#{key}="):
+            new_lines.append(f"{key}={value}\n")
+            found = True
+        else:
+            new_lines.append(line)
+
+    if not found:
+        new_lines.append(f"{key}={value}\n")
+
+    env_path.write_text("".join(new_lines), encoding="utf-8")
+
+
+def load_plugins() -> list[str]:
+    """Parse CADDY_PLUGINS from .env into a list of import paths."""
+    raw = read_env("CADDY_PLUGINS") or ""
+    # Parse --with github.com/foo/bar@v1.0.0 into ["github.com/foo/bar@v1.0.0", ...]
+    plugins: list[str] = []
+    for part in shlex.split(raw):
+        if part.startswith("--with "):
+            part = part[7:]
+        if part.startswith("--with"):
+            part = part[6:]
+        part = part.strip()
+        if part:
+            plugins.append(part)
+    return plugins
+
+
+def save_plugins(plugins: list[str]) -> None:
+    """Save a list of import paths as CADDY_PLUGINS in .env."""
+    if plugins:
+        value = " ".join(f"--with {p}" for p in plugins)
+        write_env("CADDY_PLUGINS", value)
+    else:
+        write_env("CADDY_PLUGINS", "")
+
+
+def validate_plugin_import(import_path: str) -> str:
+    """Validate and normalize a Go import path."""
+    # Strip any --with prefix the user might have included
+    path = import_path.strip()
+    if path.startswith("--with "):
+        path = path[7:]
+    elif path.startswith("--with"):
+        path = path[6:]
+    path = path.strip()
+
+    if not PLUGIN_PATTERN.fullmatch(path):
+        raise AppConfigError(
+            f"Invalid plugin import path: {path}. Expected format: github.com/user/repo or github.com/user/repo/v2@v1.0.0"
+        )
+    return path
+
+
+def open_editor(file_path: Path) -> None:
+    """Open a file in the user's $EDITOR and wait for it to close."""
+    editor = os.environ.get("EDITOR", "")
+    if not editor:
+        # Try common editors
+        for candidate in ("nano", "vim", "vi", "code", "emacs", "subl"):
+            if subprocess.run(["which", candidate], capture_output=True, text=True).returncode == 0:
+                editor = candidate
+                break
+    if not editor:
+        raise AppConfigError(
+            "No editor found. Set $EDITOR (e.g. EDITOR=nano) or use one of: nano, vim, vi, code"
+        )
+
+    if not file_path.exists():
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+        file_path.write_text("# Caddy extra directives\n# Add your plugin configuration here.\n", encoding="utf-8")
+
+    subprocess.run(shlex.split(editor) + [str(file_path)], check=True)
+
+
+def handle_plugin(args: argparse.Namespace) -> int:
+    """Handle plugin subcommands."""
+    if args.plugin_command == "config":
+        global_path = REPO_ROOT / "caddy" / "extra" / "global.caddy"
+        open_editor(global_path)
+        print("Plugin config saved. Run 'gatectl apply' to reload Caddy.")
+        return 0
+
+    if args.plugin_command == "list":
+        plugins = load_plugins()
+        if not plugins:
+            print("No plugins configured. Use 'gatectl plugin add <import-path>' to add one.")
+            return 0
+        print("Installed Caddy plugins:")
+        for plugin in plugins:
+            print(f"  {plugin}")
+        return 0
+
+    if args.plugin_command == "add":
+        plugin = validate_plugin_import(args.import_path)
+        plugins = load_plugins()
+        if plugin in plugins:
+            print(f"Plugin already installed: {plugin}")
+            return 0
+        plugins.append(plugin)
+        save_plugins(plugins)
+        print(f"Added plugin: {plugin}")
+        print("Run 'gatectl apply --rebuild' to rebuild the Caddy image and restart.")
+        return 0
+
+    if args.plugin_command == "remove":
+        plugin = validate_plugin_import(args.import_path)
+        plugins = load_plugins()
+        if plugin not in plugins:
+            raise AppConfigError(f"Plugin not found: {plugin}")
+        plugins.remove(plugin)
+        save_plugins(plugins)
+        print(f"Removed plugin: {plugin}")
+        print("Run 'gatectl apply --rebuild' to rebuild the Caddy image and restart.")
+        return 0
+
+    raise AppConfigError(f"Unsupported plugin command: {args.plugin_command}")
+
+
+def handle_app(args: argparse.Namespace) -> int:
+    """Handle app subcommands."""
+    if args.app_command == "config":
+        extra_path = REPO_ROOT / "caddy" / "extra" / "apps" / f"{args.id}.caddy"
+        if not extra_path.parent.exists():
+            extra_path.parent.mkdir(parents=True, exist_ok=True)
+        open_editor(extra_path)
+        print(f"Updated extra directives for app '{args.id}'.")
+        print("Run 'gatectl apply' to regenerate the Caddyfile and reload.")
+        return 0
+
+    raise AppConfigError(f"Unsupported app command: {args.app_command}")
+
+
 def main() -> int:
     args = parse_args()
     config_path = resolve_config(args.config)
@@ -935,6 +1123,10 @@ def main() -> int:
             find_app(apps, args.id)
             apps = [app for app in apps if app["id"] != args.id]
             action = f"Removed app: {args.id}"
+        elif args.command == "plugin":
+            return handle_plugin(args)
+        elif args.command == "app":
+            return handle_app(args)
         else:
             raise AppConfigError(f"Unsupported command: {args.command}")
 

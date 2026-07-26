@@ -12,6 +12,7 @@ services:
       - ./caddy/snippets:/etc/caddy/snippets:ro
       - ./caddy/ui:/etc/caddy/ui:ro
       - ./caddy/jwt:/etc/caddy/jwt:ro
+      - ./caddy/extra:/etc/caddy/extra:ro
       - caddy_data:/data
       - caddy_config:/config
     env_file: .env

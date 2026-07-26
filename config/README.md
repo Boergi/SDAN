@@ -39,6 +39,105 @@ usually means SSHing into the server and running `gatectl ...` there. After
 server-side config changes, run `gatectl apply` to reload Caddy with the
 new config.
 
+## Updating an Existing Installation
+
+When pulling new changes from Git, use the update script to ensure everything is
+properly migrated:
+
+```bash
+# Update locally (adds missing directories, .env keys, rebuilds Caddy)
+./scripts/update.sh
+
+# Preview what would change without applying anything
+./scripts/update.sh --dry-run
+
+# Update a remote server (syncs files and runs update remotely)
+./scripts/update.sh --remote user@yourserver.com:/srv/gateway
+```
+
+The update script:
+1. Creates any missing directories (`caddy/extra/apps`, etc.)
+2. Adds missing `.env` keys with sensible defaults
+3. Uncomments commented-out keys in `.env`
+4. Checks that `docker-compose.yml` has the required volume mounts
+5. Verifies Caddy templates have the `import extra/global.caddy` directive
+6. Creates a default `caddy/extra/global.caddy` if missing
+7. Rebuilds the Caddy image and restarts containers
+
+## Caddy Plugin Management
+
+Gatectl supports installing additional Caddy modules via xcaddy. Plugins are compiled
+into the Caddy image at build time.
+
+```bash
+# Add a plugin (e.g., Hetzner DNS challenge)
+gatectl plugin add github.com/caddy-dns/hetzner/v2@v2.0.1
+
+# List installed plugins
+gatectl plugin list
+
+# Remove a plugin
+gatectl plugin remove github.com/caddy-dns/hetzner/v2@v2.0.1
+
+# After adding/removing plugins, rebuild the image:
+gatectl apply --rebuild
+```
+
+### Global Plugin Configuration (`caddy/extra/global.caddy`)
+
+Some plugins need configuration in the global Caddy block (e.g., DNS tokens for ACME).
+Create or edit the global config file:
+
+```bash
+gatectl plugin config
+```
+
+This opens `caddy/extra/global.caddy` in your `$EDITOR`. The content is imported
+into the global block of the generated Caddyfile.
+
+Example `caddy/extra/global.caddy`:
+```caddy
+# Hetzner DNS for ACME DNS-01 challenge
+tls {
+  dns hetzner {env.HETZNER_API_TOKEN}
+}
+```
+
+Place secrets like `HETZNER_API_TOKEN` in `.env` – they are automatically available
+as environment variables in the Caddy container.
+
+### Per-App Extra Directives (`caddy/extra/apps/<id>.caddy`)
+
+Add Caddy directives specific to a single app without modifying `apps.toml`:
+
+```bash
+gatectl app w1 config
+```
+
+This opens `caddy/extra/apps/w1.caddy` in your `$EDITOR`. The content is injected
+into the site block for `w1` when the Caddyfile is generated.
+
+Example `caddy/extra/apps/w1.caddy`:
+```caddy
+# Rate-limit for w1
+rate_limit {
+  zone dynamic 10r/s
+}
+```
+
+When Caddyfile is regenerated, it produces:
+```caddy
+w1.yourdomain.com {
+  # --- extra/apps/w1.caddy ---
+  # Rate-limit for w1
+  rate_limit {
+    zone dynamic 10r/s
+  }
+
+  reverse_proxy http://w1-app:80
+}
+```
+
 Install `gatectl` globally for your user:
 
 ```bash
