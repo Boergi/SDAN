@@ -136,6 +136,20 @@ create_env_file() {
     read -r -p "Proxy Network Name [proxy_net]: " PROXY_NETWORK
     PROXY_NETWORK="${PROXY_NETWORK:-proxy_net}"
 
+    # Additional Caddy plugins
+    echo ""
+    echo "=== Additional Caddy Plugins (optional) ==="
+    echo ""
+    echo "You can install extra Caddy plugins (e.g., for rate limiting, caching, etc.)."
+    echo "Enter them as space-separated --with flags, or leave empty to skip."
+    echo ""
+    echo "Examples:"
+    echo "  --with github.com/mholt/caddy-ratelimit"
+    echo "  --with github.com/caddyserver/transform-encoder --with github.com/mholt/caddy-ratelimit"
+    echo ""
+    read -r -p "Additional plugins: " CADDY_PLUGINS
+    CADDY_PLUGINS="${CADDY_PLUGINS:-}"
+
     # Generate .env file
     cat > "$ENV_FILE" <<EOF
 # Secure Docker App Network - Environment Configuration
@@ -158,6 +172,9 @@ AUTHENTIK_CLIENT_SECRET=$AUTHENTIK_CLIENT_SECRET
 AUTH_DOMAIN=$AUTH_DOMAIN
 COOKIE_DOMAIN=$COOKIE_DOMAIN
 PROXY_NETWORK=$PROXY_NETWORK
+
+# Additional Caddy plugins (space-separated --with flags for xcaddy build)
+CADDY_PLUGINS=$CADDY_PLUGINS
 EOF
 
     chmod 600 "$ENV_FILE"

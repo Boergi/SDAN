@@ -80,6 +80,19 @@ cookie_domain="${cookie_domain:-yourdomain.com}"
 read -r -p "Proxy Network [proxy_net]: " proxy_network
 proxy_network="${proxy_network:-proxy_net}"
 
+echo ""
+echo "=== Additional Caddy Plugins (optional) ==="
+echo ""
+echo "You can install extra Caddy plugins (e.g., for rate limiting, caching, etc.)."
+echo "Enter them as space-separated --with flags, or leave empty to skip."
+echo ""
+echo "Examples:"
+echo "  --with github.com/mholt/caddy-ratelimit"
+echo "  --with github.com/caddyserver/transform-encoder --with github.com/mholt/caddy-ratelimit"
+echo ""
+read -r -p "Additional plugins: " caddy_plugins
+caddy_plugins="${caddy_plugins:-}"
+
 cat > "${ENV_FILE}" <<EOF
 # Secure Docker App Network - Environment Configuration
 # ======================================================
@@ -101,6 +114,9 @@ AUTHENTIK_CLIENT_SECRET=${AUTHENTIK_CLIENT_SECRET}
 AUTH_DOMAIN=${auth_domain}
 COOKIE_DOMAIN=${cookie_domain}
 PROXY_NETWORK=${proxy_network}
+
+# Additional Caddy plugins (space-separated --with flags for xcaddy build)
+CADDY_PLUGINS=${caddy_plugins}
 EOF
 
 chmod 600 "${ENV_FILE}"

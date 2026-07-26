@@ -1,6 +1,9 @@
 services:
   caddy:
-    build: ./caddy
+    build:
+      context: ./caddy
+      args:
+        CADDY_PLUGINS: ${CADDY_PLUGINS:-}
     ports:
       - "80:80"
       - "443:443"
