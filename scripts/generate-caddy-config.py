@@ -418,6 +418,8 @@ def main() -> int:
         return 1
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    if args.output.is_dir():
+        args.output.rmdir()
     args.output.write_text(rendered + "\n", encoding="utf-8")
     print(f"Generated {args.output} from {template_path} ({len(apps)} app(s), provider: {args.provider})")
     return 0
