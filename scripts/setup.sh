@@ -158,11 +158,67 @@ EOF
     log_info ".env file created: $ENV_FILE"
 }
 
+# Ensure apps config exists, or offer to create example apps
+ensure_apps_config() {
+    APPS_CONFIG="$PROJECT_DIR/config/apps.toml"
+    APPS_EXAMPLE="$PROJECT_DIR/config/apps.example.toml"
+
+    if [[ -f "$APPS_CONFIG" ]]; then
+        log_info "Apps config found: $APPS_CONFIG"
+        return 0
+    fi
+
+    echo ""
+    echo "=== Apps Configuration ==="
+    echo ""
+    log_warn "No apps config found at config/apps.toml"
+
+    if [[ ! -f "$APPS_EXAMPLE" ]]; then
+        log_warn "No example config found at config/apps.example.toml either."
+        echo "You can create config/apps.toml later using 'gatectl add'."
+        echo ""
+        read -r -p "Continue without apps config? [Y/n] " skip_confirm
+        if [[ "$skip_confirm" == "n" || "$skip_confirm" == "N" ]]; then
+            echo "Exiting. Create config/apps.toml manually or run 'gatectl add' to get started."
+            exit 1
+        fi
+        return 1
+    fi
+
+    echo ""
+    echo "An example apps config was found at: $APPS_EXAMPLE"
+    echo "It contains sample app entries to help you get started."
+    echo ""
+    read -r -p "Create config/apps.toml from the example file? [Y/n] " create_example
+
+    if [[ "$create_example" == "n" || "$create_example" == "N" ]]; then
+        echo ""
+        echo "Skipping. You can create config/apps.toml later using 'gatectl add'."
+        echo "The setup will continue, but the Caddyfile generation will be skipped."
+        return 1
+    fi
+
+    cp "$APPS_EXAMPLE" "$APPS_CONFIG"
+    log_info "Created $APPS_CONFIG from example file."
+    echo ""
+    echo "IMPORTANT: Edit $APPS_CONFIG to update the hostnames to your actual domains!"
+    echo "  Example: change 'w1.yourdomain.com' to 'w1.boergi.net'"
+    echo ""
+    read -r -p "Press Enter to continue with setup... " _
+}
+
 # Generate Caddyfile from template
 generate_caddyfile() {
     echo ""
     echo "=== Generating Caddyfile ==="
     echo ""
+
+    APPS_CONFIG="$PROJECT_DIR/config/apps.toml"
+    if [[ ! -f "$APPS_CONFIG" ]]; then
+        log_warn "Skipping Caddyfile generation: no apps config found."
+        echo "Run 'scripts/gatectl apply' after creating your app entries."
+        return 0
+    fi
 
     # Determine provider from .env
     if [[ -f "$ENV_FILE" ]]; then
@@ -193,7 +249,7 @@ generate_caddyfile() {
 
     # Generate Caddyfile using Python script
     python3 "$SCRIPT_DIR/generate-caddy-config.py" \
-        --config "$PROJECT_DIR/config/apps.toml" \
+        --config "$APPS_CONFIG" \
         --provider "$OIDC_PROVIDER" \
         --output "$GENERATED_DIR/Caddyfile"
 
@@ -233,6 +289,7 @@ main() {
     check_prerequisites
 
     create_env_file
+    ensure_apps_config
     generate_caddyfile
     build_and_start
 
