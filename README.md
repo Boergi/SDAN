@@ -377,6 +377,50 @@ gatectl add myapp "Your App" myapp.yourdomain.com http://my-app:3000
 gatectl apply
 ```
 
+### Securing Apps Behind the Proxy (No Direct Access)
+
+When an app is integrated with the proxy, it is **critical that the app container does not expose ports directly to the host**. Otherwise, clients could bypass the proxy (and its SSO, token checks, and IP filtering) by connecting directly to the host IP and port.
+
+Follow these rules to ensure an app is only reachable through the gateway:
+
+1. **Do not add `ports:` to the app service.**  
+   The proxy accesses the app via Docker's internal network (`proxy_net`), not through published host ports.
+
+   ```yaml
+   # ❌ BAD – exposes the app directly on the host
+   services:
+     app:
+       ports:
+         - "3000:3000"
+
+   # ✅ GOOD – only reachable through the proxy
+   services:
+     app:
+       networks:
+         proxy_net:
+           aliases:
+             - my-app
+   ```
+
+2. **Attach only the public web container to `proxy_net`.**  
+   Backend services like databases, caches, or internal APIs should stay on an isolated internal network (`app_net`) and must **not** be attached to `proxy_net`. This prevents accidental exposure of internal services.
+
+3. **Do not publish ports on the proxy network.**  
+   The `proxy_net` network is created externally by the gateway stack. App stacks consume it with `external: true`. No app should define or publish host ports on this network.
+
+4. **Verify the app is not directly reachable.**  
+   After starting the app stack, check that no host ports are listening for the app:
+
+   ```bash
+   docker compose ps
+   ```
+
+   The `PORTS` column should be empty for the app container. If it shows a mapped port like `0.0.0.0:3000->3000/tcp`, the app is directly reachable on the host and bypasses the proxy.
+
+5. **For apps that must listen on a specific port internally** (e.g., port `3000`), the port is only relevant within the Docker network. The proxy upstream will use `http://my-app:3000` internally — no host port mapping is required.
+
+This pattern applies to all apps integrated with the gateway, whether they are example apps in this repo or real applications in external repositories.
+
 ## Deployment
 
 Local-to-server code deployment:
