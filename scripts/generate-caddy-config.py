@@ -223,10 +223,9 @@ def render_portal_links(apps: list[dict[str, Any]]) -> str:
 
 
 def render_authorization_policies(apps: list[dict[str, Any]], provider: str) -> str:
-    # No authorization policies for "none" provider
     if provider == "none":
         return ""
-    
+
     blocks: list[str] = []
     provider_lower = provider.lower()
     for app in apps:
@@ -246,7 +245,6 @@ def render_authorization_policies(apps: list[dict[str, Any]], provider: str) -> 
 
 
 def render_csp(provider: str) -> str:
-    """Render the Content-Security-Policy header based on the provider."""
     base = (
         'default-src \'self\'; '
         'style-src \'self\' \'unsafe-inline\'; '
@@ -270,7 +268,7 @@ def render_csp(provider: str) -> str:
             "connect-src 'self' wss: {$AUTH_DOMAIN}; "
             "form-action 'self' {$AUTH_DOMAIN}"
         )
-    else:  # none
+    else:
         csp = (
             f"{base}"
             "connect-src 'self' wss:; "
@@ -285,7 +283,6 @@ def render_csp(provider: str) -> str:
 
 
 def load_app_extra(app_id: str, script_dir: Path) -> str:
-    """Load per-app Caddy extra directives from caddy/extra/apps/<id>.caddy if it exists."""
     extra_path = script_dir.parent / "caddy" / "extra" / "apps" / f"{app_id}.caddy"
     if extra_path.exists():
         content = extra_path.read_text(encoding="utf-8").strip()
@@ -313,7 +310,6 @@ def render_app_sites(apps: list[dict[str, Any]], provider: str) -> str:
             )
             continue
 
-        # For "none" provider: no SSO, just IP and token auth
         if provider == "none":
             csp = render_csp(provider)
             trusted_ip_matcher = ""
@@ -350,8 +346,22 @@ def render_app_sites(apps: list[dict[str, Any]], provider: str) -> str:
   }}"""
                 )
 
-            blocks.append(
-                f"""
+            if not app["trusted_ips"] and not app["tokens"]:
+                blocks.append(
+                    f"""
+
+{app['host']} {{
+  import security_baseline
+
+{csp}
+{app_extra}
+
+  reverse_proxy {app['upstream']}
+}}"""
+                )
+            else:
+                blocks.append(
+                    f"""
 
 {app['host']} {{
   import security_baseline
@@ -368,10 +378,9 @@ def render_app_sites(apps: list[dict[str, Any]], provider: str) -> str:
     respond "Forbidden" 403
   }}
 }}"""
-            )
+                )
             continue
 
-        # For providers with SSO: central auth redirect + authorization
         trusted_ip_matcher = ""
         trusted_ip_handle = ""
         token_matchers: list[str] = []
@@ -433,11 +442,10 @@ def render_app_sites(apps: list[dict[str, Any]], provider: str) -> str:
 
 def main() -> int:
     args = parse_args()
-    
-    # Determine template path based on provider
+
     script_dir = Path(__file__).parent.resolve()
     template_path = script_dir.parent / "caddy" / "templates" / f"{args.provider}.tmpl"
-    
+
     try:
         config = load_toml(args.config)
         apps = load_apps(config)
