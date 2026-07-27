@@ -538,24 +538,40 @@ def regenerate(config_path: Path) -> None:
 
 
 def run_compose(args: list[str]) -> None:
-    errors: list[str] = []
-    for command in (["docker", "compose"], ["docker-compose"]):
-        full_command = command + args
+    command = ["docker", "compose"]
+    full_command = command + args
+    try:
+        subprocess.run(full_command, cwd=REPO_ROOT, check=True, capture_output=True, text=True)
+    except FileNotFoundError as exc:
+        raise AppConfigError(f"Docker Compose not found. Install Docker first: {exc}") from exc
+    except subprocess.CalledProcessError as exc:
+        details = (exc.stderr or exc.stdout or "").strip()
+        if details:
+            raise AppConfigError(f"Docker Compose command failed: {' '.join(full_command)}: {details}") from exc
+        raise AppConfigError(f"Docker Compose command failed: {' '.join(full_command)} exited with {exc.returncode}") from exc
+
+
+def compose_exec_caddy(cmd: list[str]) -> None:
+    """Run a caddy command inside the container, waiting for it to be ready."""
+    import time
+    for attempt in range(12):  # ~30s timeout
         try:
-            subprocess.run(full_command, cwd=REPO_ROOT, check=True, capture_output=True, text=True)
+            subprocess.run(
+                ["docker", "compose", "exec", "-T", "caddy"] + cmd,
+                cwd=REPO_ROOT,
+                check=True,
+                capture_output=True,
+                text=True,
+            )
             return
-        except FileNotFoundError as exc:
-            errors.append(f"{' '.join(full_command)}: {exc}")
-            continue
         except subprocess.CalledProcessError as exc:
+            if attempt < 11:
+                time.sleep(2.5)
+                continue
             details = (exc.stderr or exc.stdout or "").strip()
             if details:
-                errors.append(f"{' '.join(full_command)}: {details}")
-            else:
-                errors.append(f"{' '.join(full_command)} exited with {exc.returncode}")
-            continue
-
-    raise AppConfigError("Docker Compose command failed. " + " | ".join(errors))
+                raise AppConfigError(f"Caddy command failed: {' '.join(cmd)}: {details}") from exc
+            raise AppConfigError(f"Caddy command failed: {' '.join(cmd)} exited with {exc.returncode}") from exc
 
 
 def apply_config(config_path: Path, reload_caddy: bool, rebuild_containers: bool, compose_check: bool) -> None:
@@ -566,11 +582,11 @@ def apply_config(config_path: Path, reload_caddy: bool, rebuild_containers: bool
 
     if rebuild_containers:
         run_compose(["up", "-d", "--build", "--force-recreate", "--remove-orphans"])
-        run_compose(["exec", "-T", "caddy", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"])
+        compose_exec_caddy(["caddy", "validate", "--config", "/etc/caddy/Caddyfile"])
         print("Docker containers rebuilt and restarted")
     elif reload_caddy:
-        run_compose(["exec", "-T", "caddy", "caddy", "validate", "--config", "/etc/caddy/Caddyfile"])
-        run_compose(["exec", "-T", "caddy", "caddy", "reload", "--config", "/etc/caddy/Caddyfile"])
+        compose_exec_caddy(["caddy", "validate", "--config", "/etc/caddy/Caddyfile"])
+        compose_exec_caddy(["caddy", "reload", "--config", "/etc/caddy/Caddyfile"])
         print("Caddy config reloaded")
 
 
