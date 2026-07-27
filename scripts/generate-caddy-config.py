@@ -245,6 +245,45 @@ def render_authorization_policies(apps: list[dict[str, Any]], provider: str) -> 
     return "".join(blocks)
 
 
+def render_csp(provider: str) -> str:
+    """Render the Content-Security-Policy header based on the provider."""
+    base = (
+        'default-src \'self\'; '
+        'style-src \'self\' \'unsafe-inline\'; '
+        'script-src \'self\' \'unsafe-inline\' \'unsafe-eval\'; '
+        'img-src \'self\' data: https:; '
+        'font-src \'self\' data:; '
+        'media-src \'self\'; '
+        'base-uri \'none\'; object-src \'none\'; '
+        'frame-ancestors \'self\'; '
+    )
+
+    if provider == "azure":
+        csp = (
+            f"{base}"
+            "connect-src 'self' wss: https://login.microsoftonline.com https://*.microsoftonline.com https://graph.microsoft.com; "
+            "form-action 'self' https://login.microsoftonline.com"
+        )
+    elif provider == "authentik":
+        csp = (
+            f"{base}"
+            "connect-src 'self' wss: {$AUTH_DOMAIN}; "
+            "form-action 'self' {$AUTH_DOMAIN}"
+        )
+    else:  # none
+        csp = (
+            f"{base}"
+            "connect-src 'self' wss:; "
+            "form-action 'self'"
+        )
+
+    return (
+        '  header {\n'
+        f'    Content-Security-Policy "{csp}"\n'
+        '  }'
+    )
+
+
 def load_app_extra(app_id: str, script_dir: Path) -> str:
     """Load per-app Caddy extra directives from caddy/extra/apps/<id>.caddy if it exists."""
     extra_path = script_dir.parent / "caddy" / "extra" / "apps" / f"{app_id}.caddy"
@@ -411,6 +450,7 @@ def main() -> int:
     rendered = rendered.replace("{{PORTAL_LINKS_BLOCK}}", render_portal_links(apps))
     rendered = rendered.replace("{{AUTHORIZATION_POLICIES}}", render_authorization_policies(apps, args.provider))
     rendered = rendered.replace("{{APP_SITE_BLOCKS}}", render_app_sites(apps, args.provider))
+    rendered = rendered.replace("{{CSP_HEADER}}", render_csp(args.provider))
 
     unresolved = sorted(set(re.findall(r"{{[A-Z_]+}}", rendered)))
     if unresolved:

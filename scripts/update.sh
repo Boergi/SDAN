@@ -134,7 +134,7 @@ for key in "${!ENV_DEFAULTS[@]}"; do
         if [[ "$DRY_RUN" == true ]]; then
             log_warn "[DRY-RUN] Would uncomment key '#${key}=...'"
         else
-            sed -i '' "s/^#${key}=/${key}=/" "$ENV_FILE"
+            sed -i.bak "s/^#${key}=/${key}=/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
             log_warn "Uncommented key '$key' in .env"
             UPDATED_ENV=true
         fi

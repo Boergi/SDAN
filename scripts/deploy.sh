@@ -60,7 +60,19 @@ if [[ ! -f caddy/jwt/sign_key1.pem ]]; then
   ./scripts/generate-jwt-keys.sh
 fi
 
-python3 scripts/generate-caddy-config.py --config "${APP_CONFIG_FILE}"
+# Read provider from .env
+OIDC_PROVIDER="none"
+if [[ -f .env ]]; then
+  while IFS='=' read -r key value; do
+    if [[ "$key" == "OIDC_PROVIDER" ]]; then
+      OIDC_PROVIDER="${value//\"/}"
+      OIDC_PROVIDER="${OIDC_PROVIDER//\'/}"
+      break
+    fi
+  done < .env
+fi
+
+python3 scripts/generate-caddy-config.py --config "${APP_CONFIG_FILE}" --provider "${OIDC_PROVIDER}"
 docker compose config --quiet
 docker compose up -d --build --remove-orphans
 docker compose ps

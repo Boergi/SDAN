@@ -1,17 +1,6 @@
-[[apps]]
-id = "w1"
-title = "Workspace W1"
-host = "w1.yourdomain.com"
-upstream = "http://w1-app:80"
-icon = "las la-th-large"
-target_blank = true
-enabled = true
-
-[[apps]]
-id = "w2"
-title = "Workspace W2"
-host = "w2.yourdomain.com"
-upstream = "http://w2-app:80"
-icon = "las la-th-large"
-target_blank = true
-enabled = true
+# Example app configuration
+# ===========================
+# Copy this file to config/apps.toml and add your apps using:
+#   gatectl add <id> <title> <host> <upstream>
+#
+# Or run 'gatectl init' to create an empty config.
