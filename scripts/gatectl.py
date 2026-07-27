@@ -574,7 +574,22 @@ def compose_exec_caddy(cmd: list[str]) -> None:
             raise AppConfigError(f"Caddy command failed: {' '.join(cmd)} exited with {exc.returncode}") from exc
 
 
+def ensure_extra_dirs() -> None:
+    """Create missing extra/*.caddy files that the templates may import."""
+    extra_dir = REPO_ROOT / "caddy" / "extra"
+    apps_dir = extra_dir / "apps"
+    for directory in (extra_dir, apps_dir):
+        directory.mkdir(parents=True, exist_ok=True)
+    global_file = extra_dir / "global.caddy"
+    if not global_file.exists():
+        global_file.write_text("# Global Caddy extra directives\n")
+    apps_dir_gitkeep = apps_dir / ".gitkeep"
+    if not apps_dir_gitkeep.exists():
+        apps_dir_gitkeep.write_text("")
+
+
 def apply_config(config_path: Path, reload_caddy: bool, rebuild_containers: bool, compose_check: bool) -> None:
+    ensure_extra_dirs()
     regenerate(config_path)
     if compose_check:
         run_compose(["config", "--quiet"])
