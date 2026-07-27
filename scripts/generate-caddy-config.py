@@ -315,6 +315,7 @@ def render_app_sites(apps: list[dict[str, Any]], provider: str) -> str:
 
         # For "none" provider: no SSO, just IP and token auth
         if provider == "none":
+            csp = render_csp(provider)
             trusted_ip_matcher = ""
             trusted_ip_handle = ""
             token_matchers: list[str] = []
@@ -354,6 +355,8 @@ def render_app_sites(apps: list[dict[str, Any]], provider: str) -> str:
 
 {app['host']} {{
   import security_baseline
+
+{csp}
 
 {trusted_ip_matcher}
 {''.join(token_matchers)}
