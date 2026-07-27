@@ -33,19 +33,32 @@ if [[ ! -f .env ]]; then
   exit 1
 fi
 
-if grep -q '^AZURE_TENANT_ID=$' .env || grep -q '^AZURE_CLIENT_ID=$' .env || grep -q '^AZURE_CLIENT_SECRET=$' .env || grep -q '^AUTH_DOMAIN=$' .env || grep -q '^COOKIE_DOMAIN=$' .env; then
-  echo "ERROR: .env enthält leere Pflichtwerte. Bitte AZURE_*, AUTH_DOMAIN und COOKIE_DOMAIN eintragen."
-  exit 1
-fi
+# Read provider from .env
+OIDC_PROVIDER="none"
+while IFS='=' read -r key value; do
+  if [[ "$key" == "OIDC_PROVIDER" ]]; then
+    OIDC_PROVIDER="${value//\"/}"
+    OIDC_PROVIDER="${OIDC_PROVIDER//\'/}"
+    break
+  fi
+done < .env
 
-if ! grep -q '^AUTH_DOMAIN=' .env; then
-  echo "ERROR: .env enthält keine AUTH_DOMAIN. Beispiel: AUTH_DOMAIN=auth.yourdomain.com"
-  exit 1
-fi
+# For providers with SSO, validate auth/cookie domain
+if [[ "$OIDC_PROVIDER" != "none" ]]; then
+  if grep -q '^AZURE_TENANT_ID=$' .env || grep -q '^AZURE_CLIENT_ID=$' .env || grep -q '^AZURE_CLIENT_SECRET=$' .env || grep -q '^AUTH_DOMAIN=$' .env || grep -q '^COOKIE_DOMAIN=$' .env; then
+    echo "ERROR: .env enthält leere Pflichtwerte. Bitte AZURE_*, AUTH_DOMAIN und COOKIE_DOMAIN eintragen."
+    exit 1
+  fi
 
-if ! grep -q '^COOKIE_DOMAIN=' .env; then
-  echo "ERROR: .env enthält keine COOKIE_DOMAIN. Beispiel: COOKIE_DOMAIN=yourdomain.com"
-  exit 1
+  if ! grep -q '^AUTH_DOMAIN=' .env; then
+    echo "ERROR: .env enthält keine AUTH_DOMAIN. Beispiel: AUTH_DOMAIN=auth.yourdomain.com"
+    exit 1
+  fi
+
+  if ! grep -q '^COOKIE_DOMAIN=' .env; then
+    echo "ERROR: .env enthält keine COOKIE_DOMAIN. Beispiel: COOKIE_DOMAIN=yourdomain.com"
+    exit 1
+  fi
 fi
 
 if [[ ! -f "${APP_CONFIG_FILE}" ]]; then

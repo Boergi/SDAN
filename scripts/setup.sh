@@ -5,6 +5,10 @@ set -euo pipefail
 # ========================================
 # This script guides you through setting up the gateway with your preferred
 # OpenID provider (Azure AD, Authentik, or none for IP+Token only).
+#
+# Usage:
+#   ./scripts/setup.sh                    # interactive mode
+#   ./scripts/setup.sh --provider none    # non-interactive, no SSO
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
@@ -30,6 +34,22 @@ log_error() {
     echo -e "${RED}✗${NC} $1"
 }
 
+# Parse arguments
+PROVIDER_FLAG=""
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        --provider)
+            PROVIDER_FLAG="$2"
+            shift 2
+            ;;
+        *)
+            log_error "Unknown option: $1"
+            echo "Usage: $0 [--provider azure|authentik|none]"
+            exit 1
+            ;;
+    esac
+done
+
 # Check prerequisites
 check_prerequisites() {
     if ! command -v docker &> /dev/null; then
@@ -48,9 +68,14 @@ check_prerequisites() {
     fi
 }
 
-# Create .env file if it doesn't exist
+# Create .env file
 create_env_file() {
     if [[ -f "$ENV_FILE" ]]; then
+        if [[ -n "$PROVIDER_FLAG" ]]; then
+            # Non-interactive: keep existing .env
+            log_info ".env file already exists."
+            return 0
+        fi
         log_info ".env file already exists."
         read -r -p "Do you want to overwrite it? [y/N] " confirm
         if [[ "$confirm" != "y" && "$confirm" != "Y" ]]; then
@@ -59,96 +84,112 @@ create_env_file() {
         fi
     fi
 
-    echo ""
-    echo "=== OpenID Provider Selection ==="
-    echo ""
-    echo "Choose your authentication provider:"
-    echo "1) Azure AD (Microsoft Entra ID)"
-    echo "2) Authentik (self-hosted OIDC)"
-    echo "3) No SSO (IP + Token authentication only)"
-    echo ""
-
-    read -r -p "Your choice [1-3]: " provider_choice
-
-    case "$provider_choice" in
-        1)
-            OIDC_PROVIDER="azure"
-            echo ""
-            echo "=== Azure AD Configuration ==="
-            echo ""
-            read -r -p "Azure Tenant ID: " AZURE_TENANT_ID
-            read -r -p "Azure Client ID: " AZURE_CLIENT_ID
-            read -r -s -p "Azure Client Secret: " AZURE_CLIENT_SECRET
-            echo ""
-            AUTHENTIK_ISSUER_URL=""
-            AUTHENTIK_CLIENT_ID=""
-            AUTHENTIK_CLIENT_SECRET=""
-            ;;
-        2)
-            OIDC_PROVIDER="authentik"
-            echo ""
-            echo "=== Authentik Configuration ==="
-            echo ""
-            echo "Important: You need to create an OpenID Connect provider in Authentik first."
-            echo "The redirect URI should be: https://YOUR_AUTH_DOMAIN/proxy/auth/oauth2/authentik/authorization-code-callback"
-            read -r -p "Authentik Issuer URL: " AUTHENTIK_ISSUER_URL
-            read -r -p "Authentik Client ID: " AUTHENTIK_CLIENT_ID
-            read -r -s -p "Authentik Client Secret: " AUTHENTIK_CLIENT_SECRET
-            echo ""
-            AZURE_TENANT_ID=""
-            AZURE_CLIENT_ID=""
-            AZURE_CLIENT_SECRET=""
-            ;;
-        3)
-            OIDC_PROVIDER="none"
-            echo ""
-            echo "=== No SSO Mode (IP + Token only) ==="
-            echo ""
-            echo "In this mode, apps are only accessible via:"
-            echo "- Trusted IP addresses (CIDR ranges)"
-            echo "- Token headers (X-Proxy-Token by default)"
-            echo "- No SSO portal will be shown."
-            AZURE_TENANT_ID=""
-            AZURE_CLIENT_ID=""
-            AZURE_CLIENT_SECRET=""
-            AUTHENTIK_ISSUER_URL=""
-            AUTHENTIK_CLIENT_ID=""
-            AUTHENTIK_CLIENT_SECRET=""
-            ;;
-        *)
-            log_error "Invalid choice. Please run the script again."
-            exit 1
-            ;;
-    esac
-
-    # Common settings
-    echo ""
-    echo "=== Common Settings ==="
-    echo ""
-
-    if [[ "$OIDC_PROVIDER" != "none" ]]; then
-        read -r -p "Auth Domain (e.g., auth.yourdomain.com): " AUTH_DOMAIN
-        read -r -p "Cookie Domain (e.g., yourdomain.com): " COOKIE_DOMAIN
-    else
+    if [[ -n "$PROVIDER_FLAG" ]]; then
+        # Non-interactive mode
+        OIDC_PROVIDER="$PROVIDER_FLAG"
+        AZURE_TENANT_ID=""
+        AZURE_CLIENT_ID=""
+        AZURE_CLIENT_SECRET=""
+        AUTHENTIK_ISSUER_URL=""
+        AUTHENTIK_CLIENT_ID=""
+        AUTHENTIK_CLIENT_SECRET=""
         AUTH_DOMAIN=""
         COOKIE_DOMAIN=""
-    fi
-    read -r -p "Proxy Network Name [proxy_net]: " PROXY_NETWORK
-    PROXY_NETWORK="${PROXY_NETWORK:-proxy_net}"
+        PROXY_NETWORK="proxy_net"
+        CADDY_PLUGINS=""
+    else
+        # Interactive mode
+        echo ""
+        echo "=== OpenID Provider Selection ==="
+        echo ""
+        echo "Choose your authentication provider:"
+        echo "1) Azure AD (Microsoft Entra ID)"
+        echo "2) Authentik (self-hosted OIDC)"
+        echo "3) No SSO (IP + Token authentication only)"
+        echo ""
 
-    # Additional Caddy plugins
-    echo ""
-    echo "=== Additional Caddy Plugins (optional) ==="
-    echo ""
-    echo "You can install extra Caddy plugins (e.g., for rate limiting, caching, etc.)."
-    echo "Enter them as space-separated --with flags, or leave empty to skip."
-    echo ""
-    echo "Examples:"
-    echo "  --with github.com/mholt/caddy-ratelimit"
-    echo "  --with github.com/caddyserver/transform-encoder --with github.com/mholt/caddy-ratelimit"
-    echo ""
-    read -r -p "Additional plugins: " CADDY_PLUGINS
-    CADDY_PLUGINS="${CADDY_PLUGINS:-}"
+        read -r -p "Your choice [1-3]: " provider_choice
+
+        case "$provider_choice" in
+            1)
+                OIDC_PROVIDER="azure"
+                echo ""
+                echo "=== Azure AD Configuration ==="
+                echo ""
+                read -r -p "Azure Tenant ID: " AZURE_TENANT_ID
+                read -r -p "Azure Client ID: " AZURE_CLIENT_ID
+                read -r -s -p "Azure Client Secret: " AZURE_CLIENT_SECRET
+                echo ""
+                AUTHENTIK_ISSUER_URL=""
+                AUTHENTIK_CLIENT_ID=""
+                AUTHENTIK_CLIENT_SECRET=""
+                ;;
+            2)
+                OIDC_PROVIDER="authentik"
+                echo ""
+                echo "=== Authentik Configuration ==="
+                echo ""
+                echo "Important: You need to create an OpenID Connect provider in Authentik first."
+                echo "The redirect URI should be: https://YOUR_AUTH_DOMAIN/proxy/auth/oauth2/authentik/authorization-code-callback"
+                read -r -p "Authentik Issuer URL: " AUTHENTIK_ISSUER_URL
+                read -r -p "Authentik Client ID: " AUTHENTIK_CLIENT_ID
+                read -r -s -p "Authentik Client Secret: " AUTHENTIK_CLIENT_SECRET
+                echo ""
+                AZURE_TENANT_ID=""
+                AZURE_CLIENT_ID=""
+                AZURE_CLIENT_SECRET=""
+                ;;
+            3)
+                OIDC_PROVIDER="none"
+                echo ""
+                echo "=== No SSO Mode (IP + Token only) ==="
+                echo ""
+                echo "In this mode, apps are only accessible via:"
+                echo "- Trusted IP addresses (CIDR ranges)"
+                echo "- Token headers (X-Proxy-Token by default)"
+                echo "- No SSO portal will be shown."
+                AZURE_TENANT_ID=""
+                AZURE_CLIENT_ID=""
+                AZURE_CLIENT_SECRET=""
+                AUTHENTIK_ISSUER_URL=""
+                AUTHENTIK_CLIENT_ID=""
+                AUTHENTIK_CLIENT_SECRET=""
+                ;;
+            *)
+                log_error "Invalid choice. Please run the script again."
+                exit 1
+                ;;
+        esac
+
+        # Common settings
+        echo ""
+        echo "=== Common Settings ==="
+        echo ""
+
+        if [[ "$OIDC_PROVIDER" != "none" ]]; then
+            read -r -p "Auth Domain (e.g., auth.yourdomain.com): " AUTH_DOMAIN
+            read -r -p "Cookie Domain (e.g., yourdomain.com): " COOKIE_DOMAIN
+        else
+            AUTH_DOMAIN=""
+            COOKIE_DOMAIN=""
+        fi
+        read -r -p "Proxy Network Name [proxy_net]: " PROXY_NETWORK
+        PROXY_NETWORK="${PROXY_NETWORK:-proxy_net}"
+
+        # Additional Caddy plugins
+        echo ""
+        echo "=== Additional Caddy Plugins (optional) ==="
+        echo ""
+        echo "You can install extra Caddy plugins (e.g., for rate limiting, caching, etc.)."
+        echo "Enter them as space-separated --with flags, or leave empty to skip."
+        echo ""
+        echo "Examples:"
+        echo "  --with github.com/mholt/caddy-ratelimit"
+        echo "  --with github.com/caddyserver/transform-encoder --with github.com/mholt/caddy-ratelimit"
+        echo ""
+        read -r -p "Additional plugins: " CADDY_PLUGINS
+        CADDY_PLUGINS="${CADDY_PLUGINS:-}"
+    fi
 
     # Generate .env file
     cat > "$ENV_FILE" <<EOF
@@ -181,10 +222,9 @@ EOF
     log_info ".env file created: $ENV_FILE"
 }
 
-# Ensure apps config exists, or offer to create example apps
+# Ensure apps config exists
 ensure_apps_config() {
     APPS_CONFIG="$PROJECT_DIR/config/apps.toml"
-    APPS_EXAMPLE="$PROJECT_DIR/config/apps.example.toml"
 
     if [[ -f "$APPS_CONFIG" ]]; then
         log_info "Apps config found: $APPS_CONFIG"
@@ -196,49 +236,34 @@ ensure_apps_config() {
     echo ""
     log_warn "No apps config found at config/apps.toml"
 
-    if [[ ! -f "$APPS_EXAMPLE" ]]; then
-        log_warn "No example config found at config/apps.example.toml either."
-        echo "You can create config/apps.toml later using 'gatectl add'."
-        echo ""
-        read -r -p "Continue without apps config? [Y/n] " skip_confirm
-        if [[ "$skip_confirm" == "n" || "$skip_confirm" == "N" ]]; then
-            echo "Exiting. Create config/apps.toml manually or run 'gatectl add' to get started."
-            exit 1
-        fi
-        return 1
-    fi
-
-    echo ""
-    echo "An example apps config was found at: $APPS_EXAMPLE"
-    echo "It contains sample app entries to help you get started."
-    echo ""
-    read -r -p "Create config/apps.toml from the example file? [Y/n] " create_example
-
-    if [[ "$create_example" == "n" || "$create_example" == "N" ]]; then
-        echo ""
-        echo "Skipping. You can create config/apps.toml later using 'gatectl add'."
-        echo "The setup will continue, but the Caddyfile generation will be skipped."
-        return 1
-    fi
-
-    # Source .env to get COOKIE_DOMAIN if available
-    if [[ -f "$ENV_FILE" ]]; then
-        source "$ENV_FILE"
-    fi
-
-    # Replace placeholder domains with actual cookie domain
-    if [[ -n "${COOKIE_DOMAIN:-}" ]]; then
-        sed "s|yourdomain\.com|$COOKIE_DOMAIN|g" "$APPS_EXAMPLE" > "$APPS_CONFIG"
-        log_info "Created $APPS_CONFIG from example file (domains set to *.$COOKIE_DOMAIN)."
+    # Create an empty config via gatectl init
+    if [[ -x "$SCRIPT_DIR/gatectl" ]]; then
+        python3 "$SCRIPT_DIR/gatectl.py" --config "$APPS_CONFIG" init
+        log_info "Created empty apps config: $APPS_CONFIG"
     else
-        cp "$APPS_EXAMPLE" "$APPS_CONFIG"
-        log_info "Created $APPS_CONFIG from example file."
-        echo ""
-        echo "IMPORTANT: Edit $APPS_CONFIG to update the hostnames to your actual domains!"
-        echo "  Example: change 'w1.yourdomain.com' to 'w1.boergi.net'"
-        echo ""
+        # Fallback: create minimal empty config
+        cat > "$APPS_CONFIG" <<EOF
+# App configuration
+# Add your apps using: gatectl add <id> <title> <host> <upstream>
+EOF
+        log_info "Created empty apps config: $APPS_CONFIG"
     fi
-    read -r -p "Press Enter to continue with setup... " _
+}
+
+# Generate JWT signing keys
+generate_jwt_keys() {
+    echo ""
+    echo "=== Generating JWT Signing Keys ==="
+    echo ""
+
+    if [[ -f "$PROJECT_DIR/caddy/jwt/sign_key1.pem" ]]; then
+        log_info "JWT signing keys already exist."
+        return 0
+    fi
+
+    mkdir -p "$PROJECT_DIR/caddy/jwt"
+    "$SCRIPT_DIR/generate-jwt-keys.sh"
+    log_info "JWT signing keys generated."
 }
 
 # Generate Caddyfile from template
@@ -314,6 +339,19 @@ build_and_start() {
     docker compose ps
 }
 
+# Install gatectl CLI
+install_gatectl() {
+    echo ""
+    echo "=== Installing gatectl CLI ==="
+    echo ""
+
+    if "$SCRIPT_DIR/gatectl" install; then
+        log_info "gatectl installed successfully."
+    else
+        log_warn "gatectl installation failed. You can install it later with: ./scripts/gatectl install"
+    fi
+}
+
 # Main execution
 main() {
     echo "Secure Docker App Network - Setup Script"
@@ -321,11 +359,12 @@ main() {
     echo ""
 
     check_prerequisites
-
     create_env_file
     ensure_apps_config
+    generate_jwt_keys
     generate_caddyfile
     build_and_start
+    install_gatectl
 
     echo ""
     echo "=== Setup Complete ==="
@@ -333,11 +372,11 @@ main() {
     echo "Your gateway is now running!"
     echo ""
     echo "Next steps:"
-    echo "1. Add your apps to config/apps.toml using 'gatectl add'"
-    echo "2. Run 'scripts/gatectl apply' to apply changes"
+    echo "1. Add your apps using 'gatectl add'"
+    echo "2. Run 'gatectl apply' to apply changes"
     echo "3. Make sure your apps are connected to the '$PROXY_NETWORK' network"
     echo ""
-    echo "Documentation: https://github.com/your-org/secure-docker-app-network"
+    echo "Documentation: https://github.com/Boergi/SDAN"
 }
 
 main "$@"
