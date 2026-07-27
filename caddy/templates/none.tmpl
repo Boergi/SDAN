@@ -5,7 +5,9 @@ import snippets/security_baseline.caddy
 import snippets/ui_assets.caddy
 import extra/global.caddy
 
-{{CSP_HEADER}}
+{
+  {{CSP_HEADER}}
 
-# App-Sites werden dynamisch generiert
-{{APP_SITE_BLOCKS}}
+  # App-Sites werden dynamisch generiert
+  {{APP_SITE_BLOCKS}}
+}
