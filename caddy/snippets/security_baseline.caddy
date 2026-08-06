@@ -19,6 +19,8 @@
   @vcs path /.git* /.hg* /.svn* /.DS_Store
   respond @vcs 403
 
-  @dotdot path_regexp dotdot (?i)(\.\.|%2e%2e|%252e%252e|%c0%ae%c0%ae|%uff0e%uff0e|%2e%2f|%2f%2e|%5c%2e%2e|%2e%2e%5c)
+  # Block traversal segments, but allow legitimate filenames containing `..`
+  # such as Next.js/Turbopack chunks (`chunk..js`).
+  @dotdot path_regexp dotdot (?i)(^|/)(\.\.|%2e%2e|%252e%252e|%c0%ae%c0%ae|%uff0e%uff0e)(/|$)|(^|/)(%2e%2f|%2f%2e|%5c%2e%2e|%2e%2e%5c)(/|$)
   respond @dotdot 400
 }
